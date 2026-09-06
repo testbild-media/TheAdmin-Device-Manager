@@ -1,7 +1,7 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { scanLibrary, slugify, slugError, parseViewBox, cleanSvg, formatSvg, validateManifest, normalizeDeviceType, formatManifest, isInside } = require('./library.cjs');
+const { scanLibrary, pruneAssetlessFolders, fileSystemPath, isDeviceAssetsRoot, slugify, slugError, parseViewBox, cleanSvg, formatSvg, validateManifest, normalizeDeviceType, formatManifest, isInside } = require('./library.cjs');
 
 let mainWindow;
 let editorDirty = false;
@@ -60,8 +60,8 @@ function registerIpc() {
     const folder = path.resolve(root, ...String(id).split('/'));
     if (!isInside(root, folder)) throw new Error('Invalid device path.');
     const [manifestText, svg] = await Promise.all([
-      fs.readFile(path.join(folder, 'device.json'), 'utf8'),
-      fs.readFile(path.join(folder, 'front.svg'), 'utf8')
+      fs.readFile(fileSystemPath(path.join(folder, 'device.json')), 'utf8'),
+      fs.readFile(fileSystemPath(path.join(folder, 'front.svg')), 'utf8')
     ]);
     return { manifest: JSON.parse(manifestText.replace(/^\uFEFF/, '')), svg, id };
   });
@@ -119,7 +119,9 @@ async function openLibrary(root) {
   const resolved = path.resolve(root);
   const stat = await fs.stat(resolved);
   if (!stat.isDirectory()) throw new Error('The selected path is not a folder.');
-  return { root: resolved, devices: await scanLibrary(resolved) };
+  if (!isDeviceAssetsRoot(resolved)) throw new Error('Select a folder named exactly “device-assets”.');
+  const removedFolders = await pruneAssetlessFolders(resolved);
+  return { root: resolved, devices: await scanLibrary(resolved), removedFolders };
 }
 
 async function saveDevice({ root, originalId, manifest, svg }) {
@@ -144,7 +146,7 @@ async function saveDevice({ root, originalId, manifest, svg }) {
     throw new Error(`The destination ${vendorDir}/${modelDir} already exists.`);
   }
   await fs.mkdir(path.dirname(target), { recursive: true });
-  if (original && path.normalize(original) !== path.normalize(target)) await fs.rename(original, target);
+  if (original && path.normalize(original) !== path.normalize(target)) await fs.rename(fileSystemPath(original), fileSystemPath(target));
   else await fs.mkdir(target, { recursive: true });
 
   const cleanManifest = {
@@ -159,7 +161,8 @@ async function saveDevice({ root, originalId, manifest, svg }) {
     atomicWrite(path.join(target, 'device.json'), formatManifest(cleanManifest)),
     atomicWrite(path.join(target, 'front.svg'), formatSvg(svg))
   ]);
-  return { id: `${vendorDir}/${modelDir}`, manifest: cleanManifest, devices: await scanLibrary(resolvedRoot) };
+  const removedFolders = await pruneAssetlessFolders(resolvedRoot);
+  return { id: `${vendorDir}/${modelDir}`, manifest: cleanManifest, devices: await scanLibrary(resolvedRoot), removedFolders };
 }
 
 async function atomicWrite(file, content) {

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { slugify, isValidAssetSlug, parseViewBox, validateSvg, cleanSvg, formatSvg, validateManifest, validateDeviceFolder, normalizeDeviceType, formatManifest, scanLibrary, isInside } = require('../src/library.cjs');
+const { slugify, isValidAssetSlug, parseViewBox, validateSvg, cleanSvg, formatSvg, validateManifest, validateDeviceFolder, normalizeDeviceType, formatManifest, scanLibrary, pruneAssetlessFolders, isDeviceAssetsRoot, isInside } = require('../src/library.cjs');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const os = require('node:os');
@@ -20,6 +20,13 @@ test('slugify follows the device folder convention', () => {
 test('asset slugs reject empty and Windows-reserved path segments', () => {
   for (const input of ['', ' . ', 'CON', 'prn', 'COM1', 'lpt9']) assert.equal(isValidAssetSlug(slugify(input)), false, input);
   for (const input of ['vendor-com1-48', 'com1-switch', 'console', 'communication', 'lpt10']) assert.equal(isValidAssetSlug(slugify(input)), true, input);
+});
+
+test('only a folder named exactly device-assets is accepted as a library root', () => {
+  assert.equal(isDeviceAssetsRoot(path.join(os.tmpdir(), 'device-assets')), true);
+  assert.equal(isDeviceAssetsRoot(path.join(os.tmpdir(), 'Device-Assets')), false);
+  assert.equal(isDeviceAssetsRoot(path.join(os.tmpdir(), 'device-assets-copy')), false);
+  assert.equal(isDeviceAssetsRoot(os.tmpdir()), false);
 });
 
 test('parseViewBox accepts spaces and commas', () => {
@@ -163,4 +170,32 @@ test('library scan includes incomplete asset folders', async (context) => {
   assert.equal(devices.length, 1);
   assert.equal(devices[0].loadable, false);
   assert.ok(devices[0].validation.errors.includes('A2: front.svg is missing.'));
+});
+
+test('cleanup removes assetless model folders and their empty vendor folders', async (context) => {
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'device-manager-cleanup-'));
+  context.after(() => fs.rm(temporary, { recursive: true, force: true }));
+  const root = path.join(temporary, 'device-assets');
+  const obsolete = path.join(root, 'old-vendor', 'old-model');
+  const incomplete = path.join(root, 'kept-vendor', 'kept-model');
+  await fs.mkdir(obsolete, { recursive: true });
+  await fs.writeFile(path.join(obsolete, 'leftover.txt'), 'obsolete');
+  await fs.mkdir(incomplete, { recursive: true });
+  await fs.writeFile(path.join(incomplete, 'device.json'), '{}');
+
+  const removed = await pruneAssetlessFolders(root);
+
+  assert.deepEqual(removed, ['old-vendor/old-model', 'old-vendor']);
+  await assert.rejects(fs.access(obsolete));
+  await fs.access(incomplete);
+});
+
+test('cleanup never removes folders outside a device-assets root', async (context) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'device-manager-safe-cleanup-'));
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const unrelated = path.join(root, 'src', 'important');
+  await fs.mkdir(unrelated, { recursive: true });
+  await fs.writeFile(path.join(unrelated, 'source.txt'), 'keep');
+  assert.deepEqual(await pruneAssetlessFolders(root), []);
+  await fs.access(path.join(unrelated, 'source.txt'));
 });

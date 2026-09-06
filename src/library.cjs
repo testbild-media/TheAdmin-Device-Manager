@@ -267,7 +267,7 @@ async function validateDeviceFolder(root, vendorDir, modelDir) {
   let manifest;
   let manifestText;
   try {
-    manifestText = (await fs.readFile(manifestPath, 'utf8')).replace(/^\uFEFF/, '');
+    manifestText = (await fs.readFile(fileSystemPath(manifestPath), 'utf8')).replace(/^\uFEFF/, '');
     manifest = JSON.parse(manifestText);
   } catch (error) {
     errors.push(`B1: device.json is not valid readable JSON (${error.message}).`);
@@ -292,7 +292,7 @@ async function validateDeviceFolder(root, vendorDir, modelDir) {
   const manifestViewBoxValid = Array.isArray(manifest.viewBox) && manifest.viewBox.length === 4 && manifest.viewBox.every(isNumber);
   if (!manifestViewBoxValid) errors.push('B7: viewBox must be an array containing exactly four numbers.');
 
-  const svg = await fs.readFile(svgPath, 'utf8');
+  const svg = await fs.readFile(fileSystemPath(svgPath), 'utf8');
   let svgViewBox;
   try { svgViewBox = parseViewBox(svg); }
   catch { errors.push('C1: front.svg has no valid viewBox attribute.'); }
@@ -364,12 +364,49 @@ function validateElementPorts(document, ports, errors, warnings) {
 }
 
 function isNumber(value) { return typeof value === 'number' && Number.isFinite(value); }
-async function fileExists(file) { try { await fs.access(file); return true; } catch { return false; } }
+async function fileExists(file) { try { await fs.access(fileSystemPath(file)); return true; } catch { return false; } }
 
 async function safeDirectories(folder) {
   try {
-    return (await fs.readdir(folder, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+    return (await fs.readdir(fileSystemPath(folder), { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
   } catch { return []; }
+}
+
+async function pruneAssetlessFolders(root) {
+  const removed = [];
+  if (!isDeviceAssetsRoot(root)) return removed;
+  const vendorEntries = await readDirectoryEntries(root);
+  for (const vendorEntry of vendorEntries.filter((entry) => entry.isDirectory())) {
+    const vendorFolder = path.join(root, vendorEntry.name);
+    const modelEntries = await readDirectoryEntries(vendorFolder);
+    for (const modelEntry of modelEntries.filter((entry) => entry.isDirectory())) {
+      const modelFolder = path.join(vendorFolder, modelEntry.name);
+      const contents = await readDirectoryEntries(modelFolder);
+      const hasManifest = contents.some((entry) => entry.isFile() && entry.name === 'device.json');
+      const hasSvg = contents.some((entry) => entry.isFile() && entry.name === 'front.svg');
+      if (hasManifest || hasSvg) continue;
+      await fs.rm(fileSystemPath(modelFolder), { recursive: true, force: false });
+      removed.push(`${vendorEntry.name}/${modelEntry.name}`);
+    }
+    if (!(await readDirectoryEntries(vendorFolder)).length) {
+      await fs.rmdir(fileSystemPath(vendorFolder));
+      removed.push(vendorEntry.name);
+    }
+  }
+  return removed;
+}
+
+async function readDirectoryEntries(folder) {
+  try { return await fs.readdir(fileSystemPath(folder), { withFileTypes: true }); }
+  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+}
+
+function fileSystemPath(value) {
+  return process.platform === 'win32' ? path.toNamespacedPath(value) : value;
+}
+
+function isDeviceAssetsRoot(value) {
+  return path.basename(path.resolve(String(value || ''))) === 'device-assets';
 }
 
 function isInside(root, candidate) {
@@ -377,4 +414,4 @@ function isInside(root, candidate) {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
-module.exports = { ALLOWED_TAGS, SELECTABLE_TAGS, PORT_KINDS, DEVICE_TYPES, normalizeDeviceType, slugify, isValidAssetSlug, slugError, parseViewBox, validateSvg, cleanSvg, formatSvg, validateManifest, validateDeviceFolder, formatManifest, scanLibrary, isInside };
+module.exports = { ALLOWED_TAGS, SELECTABLE_TAGS, PORT_KINDS, DEVICE_TYPES, normalizeDeviceType, slugify, isValidAssetSlug, slugError, parseViewBox, validateSvg, cleanSvg, formatSvg, validateManifest, validateDeviceFolder, formatManifest, scanLibrary, pruneAssetlessFolders, fileSystemPath, isDeviceAssetsRoot, isInside };

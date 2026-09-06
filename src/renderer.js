@@ -52,6 +52,19 @@ function applyLibrary(result) {
   state.collapsedTree.clear();
   elements.path.textContent = result.root; elements.path.title = result.root; elements.create.disabled = false; elements.save.disabled = true;
   clearEditor(); updateDirty(); renderTree(); runAdvancedLibraryValidation(result.root);
+  reportRemovedFolders(result.removedFolders);
+}
+
+function reportRemovedFolders(removedFolders) {
+  const message = removedFoldersMessage(removedFolders);
+  if (message) notify(message);
+}
+
+function removedFoldersMessage(removedFolders) {
+  if (!Array.isArray(removedFolders) || !removedFolders.length) return '';
+  const deviceFolders = removedFolders.filter((folder) => folder.includes('/')).length;
+  const vendorFolders = removedFolders.length - deviceFolders;
+  return `Cleanup removed ${deviceFolders} assetless device folder${deviceFolders === 1 ? '' : 's'} and ${vendorFolders} empty vendor folder${vendorFolders === 1 ? '' : 's'}.`;
 }
 
 async function runAdvancedLibraryValidation(root) {
@@ -378,7 +391,8 @@ async function saveDevice() {
     const result = await window.deviceStudio.saveDevice({ root: state.root, originalId: state.currentId, manifest: state.manifest, svg: state.svg });
     if (!result.ok) { showFormErrors(String(result.error || 'Save failed.').split('\n')); notify(result.error || 'Save failed.', true); return false; }
     const saved = result.data;
-    state.currentId = saved.id; state.manifest = saved.manifest; state.devices = saved.devices; state.dirty = false; clearFormErrors(); updateDirty(); renderTree(); renderPorts(); runAdvancedLibraryValidation(state.root); notify('Device saved.'); return true;
+    state.currentId = saved.id; state.manifest = saved.manifest; state.devices = saved.devices; state.dirty = false; clearFormErrors(); updateDirty(); renderTree(); renderPorts(); runAdvancedLibraryValidation(state.root);
+    const cleanupMessage = removedFoldersMessage(saved.removedFolders); notify(`Device saved.${cleanupMessage ? `\n${cleanupMessage}` : ''}`); return true;
   } catch (error) { notify(error.message, true); return false; }
 }
 
