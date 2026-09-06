@@ -1,0 +1,48 @@
+{
+  "name": "theadmin-device-manager",
+  "version": "1.0.0",
+  "description": "TheAdmin desktop editor for device-assets libraries",
+  "author": "TheAdmin",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@12.3.4",
+  "main": "src/main.cjs",
+  "type": "commonjs",
+  "dependencies": {
+    "@xmldom/xmldom": "^0.8.11"
+  },
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^38.0.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "de.theadmin.devicemanager",
+    "productName": "TheAdmin Device Manager",
+    "files": [
+      "src/**/*",
+      "branding/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "branding/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "branding/icon.svg",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "branding/icon.svg",
+      "category": "Development"
+    }
+  }
+}

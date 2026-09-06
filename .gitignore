@@ -1,0 +1,12 @@
+node_modules/
+.pnpm-store/
+dist/
+device-studio-smoke.png
+*.tmp-*
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+!.env.example
+*.cmd

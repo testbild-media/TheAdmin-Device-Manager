@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'">
+  <title>TheAdmin Device Manager</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><picture><source media="(prefers-color-scheme: light)" srcset="../branding/logo_light.svg"><img src="../branding/logo_dark.svg" alt="TheAdmin"></picture><span class="brand-divider"></span><div><strong>Device Manager</strong><small id="library-path">No library opened</small></div></div>
+    <div class="toolbar">
+      <button id="open-library" class="button secondary">Open folder</button>
+      <button id="new-device" class="button secondary" disabled>New device</button>
+      <button id="save-device" class="button primary" disabled>Save <span class="shortcut">Ctrl S</span></button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <aside class="sidebar panel">
+      <div class="panel-heading"><div><span class="eyebrow">Library</span><h2>Devices</h2></div><span id="device-count" class="count">0</span></div>
+      <div id="device-tree" class="device-tree empty"><p>Open a <code>device-assets</code> folder.</p></div>
+    </aside>
+
+    <section class="canvas-panel panel">
+      <div class="canvas-heading">
+        <div><span class="eyebrow">Preview</span><h1 id="device-title">No device selected</h1></div>
+        <div class="canvas-actions"><button id="replace-svg" class="button compact hidden">Replace SVG</button><div id="dirty-badge" class="dirty-badge hidden">Unsaved changes</div></div>
+      </div>
+      <div id="empty-canvas" class="empty-canvas"><div class="empty-icon">◇</div><h3>Ready for your device library</h3><p>Select a device on the left or create a new one from an SVG.</p></div>
+      <div id="canvas-content" class="canvas-content hidden">
+        <div id="svg-stage" class="svg-stage" tabindex="0"><div id="svg-preview"></div><div class="stage-hint">Click an SVG element to assign it to the active port</div></div>
+        <div class="layer-panel">
+          <div class="layer-header"><div><span class="eyebrow">SVG</span><h3>Elements</h3></div><span id="layer-count" class="count">0</span></div>
+          <input id="layer-filter" class="search" placeholder="Search by ID or element …">
+          <div id="layer-list" class="layer-list" tabindex="0"></div>
+          <div class="keyboard-hint"><kbd>↑</kbd><kbd>↓</kbd> navigate · <kbd>Enter</kbd> assign</div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="editor panel">
+      <div class="panel-heading"><div><span class="eyebrow">Manifest</span><h2>Properties</h2></div></div>
+      <div id="editor-empty" class="editor-empty">Select a device.</div>
+      <form id="manifest-form" class="manifest-form hidden">
+        <div id="form-errors" class="form-errors hidden" role="alert"></div>
+        <label class="property-row"><span>Vendor</span><input name="vendor" autocomplete="off" required></label>
+        <label class="property-row"><span>Model name</span><input name="model" autocomplete="off" required></label>
+        <label class="property-row"><span>Type</span><select name="type" required>
+          <option value="access_point">Access Point</option>
+          <option value="camera">Camera</option>
+          <option value="firewall">Firewall</option>
+          <option value="nvr">NVR</option>
+          <option value="other">Other</option>
+          <option value="patch_panel">Patch Panel</option>
+          <option value="printer">Printer</option>
+          <option value="router">Router</option>
+          <option value="server">Server</option>
+          <option value="switch">Switch</option>
+          <option value="ups">UPS</option>
+          <option value="workstation">Workstation</option>
+        </select></label>
+        <div class="property-row viewbox-row"><span>viewBox</span><output id="viewbox-value"></output></div>
+        <div class="ports-title"><div><span class="eyebrow">Assignments</span><h3>Ports</h3></div><button id="add-port" type="button" class="icon-button" title="Add port">＋</button></div>
+        <div class="ports-columns" aria-hidden="true"><span>#</span><span>Label</span><span>Kind</span><span>SVG element</span><span></span></div>
+        <div id="ports-list" class="ports-list"></div>
+      </form>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script src="renderer.js"></script>
+</body>
+</html>
