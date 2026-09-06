@@ -2,7 +2,7 @@
   "name": "theadmin-device-manager",
   "version": "1.0.0",
   "description": "TheAdmin desktop editor for device-assets libraries",
-  "author": "TheAdmin",
+  "author": "testbild.media",
   "license": "UNLICENSED",
   "packageManager": "pnpm@12.3.4",
   "main": "src/main.cjs",
@@ -42,6 +42,7 @@
         "deb"
       ],
       "icon": "branding/icon.svg",
+	  "maintainer": "testbild.media <mail@testbild.media>",
       "category": "Development"
     }
   }
