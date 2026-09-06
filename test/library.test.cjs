@@ -52,8 +52,9 @@ test('manifest formatter keeps viewBox and every port on one line', () => {
 });
 
 test('path containment rejects traversal', () => {
-  assert.equal(isInside('C:\\assets', 'C:\\assets\\vendor\\model'), true);
-  assert.equal(isInside('C:\\assets', 'C:\\elsewhere'), false);
+  const root = path.resolve('assets');
+  assert.equal(isInside(root, path.join(root, 'vendor', 'model')), true);
+  assert.equal(isInside(root, path.resolve(root, '..', 'elsewhere')), false);
 });
 
 test('unsafe and external SVG content is rejected', () => {
