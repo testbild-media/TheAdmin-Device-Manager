@@ -1,6 +1,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { DOMParser, XMLSerializer } = require('@xmldom/xmldom');
+const { slugify, isValidAssetSlug, slugError } = require('./asset-slug.js');
 
 const ALLOWED_TAGS = new Set([
   'svg', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'g',
@@ -16,12 +17,6 @@ const DEVICE_TYPES = ['access_point', 'camera', 'firewall', 'nvr', 'other', 'pat
 function normalizeDeviceType(value) {
   const normalized = String(value || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   return ({ accesspoint: 'access_point', patchpanel: 'patch_panel' })[normalized] || normalized;
-}
-
-function slugify(value) {
-  let source = String(value || '').trim().toLowerCase().replaceAll('+', 'plus');
-  source = source.replace(/\s+/g, '-').replace(/[^a-z0-9._-]/g, '-');
-  return source.replace(/-+/g, '-').replace(/^-|-$/g, '') || 'device';
 }
 
 function parseViewBox(svg) {
@@ -258,8 +253,8 @@ async function validateDeviceFolder(root, vendorDir, modelDir) {
   const errors = [];
   const warnings = [];
   const folder = path.join(root, vendorDir, modelDir);
-  if (!/^[a-z0-9._-]+$/.test(vendorDir)) errors.push(`A1: Vendor folder “${vendorDir}” contains invalid characters.`);
-  if (!/^[a-z0-9._-]+$/.test(modelDir)) errors.push(`A1: Model folder “${modelDir}” contains invalid characters.`);
+  if (!isValidAssetSlug(vendorDir)) errors.push(`A1: Vendor folder “${vendorDir}” is not a valid asset slug.`);
+  if (!isValidAssetSlug(modelDir)) errors.push(`A1: Model folder “${modelDir}” is not a valid asset slug.`);
 
   const manifestPath = path.join(folder, 'device.json');
   const svgPath = path.join(folder, 'front.svg');
@@ -285,6 +280,12 @@ async function validateDeviceFolder(root, vendorDir, modelDir) {
   if (manifest.formatVersion !== 1) errors.push('B3: formatVersion must be exactly 1.');
   if (!String(manifest.vendor || '').trim()) errors.push('B4: vendor is missing or empty.');
   if (!String(manifest.model || '').trim()) errors.push('B5: model is missing or empty.');
+  const vendorSlugError = slugError('Vendor', manifest.vendor);
+  const modelSlugError = slugError('Model', manifest.model);
+  if (vendorSlugError) errors.push(`A3: ${vendorSlugError}`);
+  else if (slugify(manifest.vendor) !== vendorDir) errors.push(`A3: Vendor folder must be “${slugify(manifest.vendor)}” for manifest vendor “${manifest.vendor}”.`);
+  if (modelSlugError) errors.push(`A3: ${modelSlugError}`);
+  else if (slugify(manifest.model) !== modelDir) errors.push(`A3: Model folder must be “${slugify(manifest.model)}” for manifest model “${manifest.model}”.`);
   if (manifest.type !== undefined && manifest.type !== null && (typeof manifest.type !== 'string' || !/^[a-z]+(?:_[a-z]+)*$/.test(manifest.type))) {
     errors.push('B6: type may only contain lowercase words separated by single underscores.');
   }
@@ -376,4 +377,4 @@ function isInside(root, candidate) {
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
-module.exports = { ALLOWED_TAGS, SELECTABLE_TAGS, PORT_KINDS, DEVICE_TYPES, normalizeDeviceType, slugify, parseViewBox, validateSvg, cleanSvg, formatSvg, validateManifest, validateDeviceFolder, formatManifest, scanLibrary, isInside };
+module.exports = { ALLOWED_TAGS, SELECTABLE_TAGS, PORT_KINDS, DEVICE_TYPES, normalizeDeviceType, slugify, isValidAssetSlug, slugError, parseViewBox, validateSvg, cleanSvg, formatSvg, validateManifest, validateDeviceFolder, formatManifest, scanLibrary, isInside };

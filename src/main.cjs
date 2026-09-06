@@ -1,7 +1,7 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { scanLibrary, slugify, parseViewBox, cleanSvg, formatSvg, validateManifest, normalizeDeviceType, formatManifest, isInside } = require('./library.cjs');
+const { scanLibrary, slugify, slugError, parseViewBox, cleanSvg, formatSvg, validateManifest, normalizeDeviceType, formatManifest, isInside } = require('./library.cjs');
 
 let mainWindow;
 let editorDirty = false;
@@ -127,6 +127,10 @@ async function saveDevice({ root, originalId, manifest, svg }) {
   manifest = { ...manifest, type: normalizeDeviceType(manifest.type) };
   const resolvedRoot = path.resolve(root);
   const errors = validateManifest(manifest, svg);
+  const vendorSlugError = slugError('Vendor', manifest.vendor);
+  const modelSlugError = slugError('Model', manifest.model);
+  if (vendorSlugError) errors.push(vendorSlugError);
+  if (modelSlugError) errors.push(modelSlugError);
   if (errors.length) throw new Error(errors.join('\n'));
 
   const vendorDir = slugify(manifest.vendor);

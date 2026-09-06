@@ -19,7 +19,7 @@
 
   <main class="workspace">
     <aside class="sidebar panel">
-      <div class="panel-heading"><div><span class="eyebrow">Library</span><h2>Devices</h2></div><span id="device-count" class="count">0</span></div>
+      <div class="panel-heading"><div><span class="eyebrow">Library</span><h2>Devices</h2></div><div class="tree-actions"><button id="collapse-tree" type="button" class="collapse-tree" title="Collapse all vendors and types" disabled>Collapse all</button><span id="device-count" class="count">0</span></div></div>
       <div id="device-tree" class="device-tree empty"><p>Open a <code>device-assets</code> folder.</p></div>
     </aside>
 
@@ -62,7 +62,7 @@
           <option value="workstation">Workstation</option>
         </select></label>
         <div class="property-row viewbox-row"><span>viewBox</span><output id="viewbox-value"></output></div>
-        <div class="ports-title"><div><span class="eyebrow">Assignments</span><h3>Ports</h3></div><button id="add-port" type="button" class="icon-button" title="Add port">＋</button></div>
+        <div class="ports-title"><div><span class="eyebrow">Assignments</span><h3>Ports</h3></div><div class="add-ports"><label for="ports-to-add">Number to add</label><input id="ports-to-add" type="number" min="1" max="256" step="1" value="1"><button id="add-port" type="button" class="icon-button" title="Add ports">＋</button></div></div>
         <div class="ports-columns" aria-hidden="true"><span>#</span><span>Label</span><span>Kind</span><span>SVG element</span><span></span></div>
         <div id="ports-list" class="ports-list"></div>
       </form>
@@ -70,6 +70,7 @@
   </main>
 
   <div id="toast" class="toast hidden" role="status"></div>
+  <script src="asset-slug.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

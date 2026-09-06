@@ -7,13 +7,13 @@ const TYPE_LABELS = {
   ups: 'UPS', workstation: 'Workstation'
 };
 
-const state = { root: null, devices: [], currentId: null, manifest: null, svg: '', dirty: false, activePort: null, activeLayer: -1, layers: [] };
+const state = { root: null, devices: [], currentId: null, manifest: null, svg: '', dirty: false, activePort: null, activeLayer: -1, layers: [], collapsedTree: new Set() };
 const $ = (selector) => document.querySelector(selector);
 const elements = {
-  open: $('#open-library'), create: $('#new-device'), save: $('#save-device'), path: $('#library-path'), count: $('#device-count'),
+  open: $('#open-library'), create: $('#new-device'), save: $('#save-device'), path: $('#library-path'), count: $('#device-count'), collapseTree: $('#collapse-tree'),
   tree: $('#device-tree'), title: $('#device-title'), dirty: $('#dirty-badge'), emptyCanvas: $('#empty-canvas'), content: $('#canvas-content'),
   preview: $('#svg-preview'), replaceSvg: $('#replace-svg'), layerList: $('#layer-list'), layerCount: $('#layer-count'), layerFilter: $('#layer-filter'),
-  editorEmpty: $('#editor-empty'), form: $('#manifest-form'), viewBox: $('#viewbox-value'), formErrors: $('#form-errors'), ports: $('#ports-list'), addPort: $('#add-port'), toast: $('#toast')
+  editorEmpty: $('#editor-empty'), form: $('#manifest-form'), viewBox: $('#viewbox-value'), formErrors: $('#form-errors'), ports: $('#ports-list'), portsToAdd: $('#ports-to-add'), addPort: $('#add-port'), toast: $('#toast')
 };
 
 elements.open.addEventListener('click', chooseLibrary);
@@ -21,6 +21,8 @@ elements.create.addEventListener('click', createDevice);
 elements.save.addEventListener('click', saveDevice);
 elements.replaceSvg.addEventListener('click', replaceSvg);
 elements.addPort.addEventListener('click', addPort);
+elements.portsToAdd.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addPort(); } });
+elements.collapseTree.addEventListener('click', collapseTree);
 elements.layerFilter.addEventListener('input', renderLayers);
 elements.form.addEventListener('input', onFormInput);
 elements.layerList.addEventListener('keydown', onLayerKey);
@@ -47,6 +49,7 @@ async function chooseLibrary() {
 
 function applyLibrary(result) {
   state.root = result.root; state.devices = result.devices; state.currentId = null; state.manifest = null; state.svg = ''; state.dirty = false;
+  state.collapsedTree.clear();
   elements.path.textContent = result.root; elements.path.title = result.root; elements.create.disabled = false; elements.save.disabled = true;
   clearEditor(); updateDirty(); renderTree(); runAdvancedLibraryValidation(result.root);
 }
@@ -71,6 +74,7 @@ function renderTree() {
   const invalidCount = state.devices.filter((device) => device.validation?.status === 'error').length;
   elements.count.title = invalidCount ? `${invalidCount} invalid device${invalidCount === 1 ? '' : 's'}` : 'All devices passed';
   elements.tree.classList.toggle('empty', !state.devices.length);
+  elements.collapseTree.disabled = !state.devices.length;
   if (!state.devices.length) { elements.tree.innerHTML = '<p>No devices in this library yet.</p>'; return; }
   const groups = new Map();
   state.devices.forEach((device) => {
@@ -85,9 +89,9 @@ function renderTree() {
 function treeGroup(vendor, types) {
   const wrap = el('div', 'tree-vendor');
   const total = [...types.values()].reduce((sum, devices) => sum + devices.length, 0);
-  const button = toggleButton(vendor, total); const children = el('div', 'tree-children');
+  const children = el('div', 'tree-children'); const button = toggleButton(vendor, total, `vendor:${vendor}`, children);
   [...types.entries()].sort(([a], [b]) => a.localeCompare(b, 'de')).forEach(([type, devices]) => {
-    const typeWrap = el('div', 'tree-type'); const typeButton = toggleButton(TYPE_LABELS[type] || type, devices.length); const typeChildren = el('div', 'tree-children');
+    const typeWrap = el('div', 'tree-type'); const typeChildren = el('div', 'tree-children'); const typeButton = toggleButton(TYPE_LABELS[type] || type, devices.length, `type:${vendor}\0${type}`, typeChildren);
     devices.forEach((device) => {
       const entry = el('div', 'tree-device-entry');
       const status = device.validation?.status || 'valid';
@@ -112,9 +116,24 @@ function treeGroup(vendor, types) {
   wrap.append(button, children); return wrap;
 }
 
-function toggleButton(label, count) {
+function toggleButton(label, count, key, children) {
   const button = el('button', 'tree-toggle'); button.type = 'button'; button.innerHTML = `<span class="chevron">▾</span><span>${escapeHtml(label)}</span><small>${count}</small>`;
-  button.addEventListener('click', () => { button.classList.toggle('collapsed'); button.nextElementSibling.classList.toggle('hidden'); }); return button;
+  const initiallyCollapsed = state.collapsedTree.has(key);
+  button.classList.toggle('collapsed', initiallyCollapsed); children.classList.toggle('hidden', initiallyCollapsed);
+  button.addEventListener('click', () => {
+    const collapsed = !state.collapsedTree.has(key);
+    if (collapsed) state.collapsedTree.add(key); else state.collapsedTree.delete(key);
+    button.classList.toggle('collapsed', collapsed); children.classList.toggle('hidden', collapsed);
+  });
+  return button;
+}
+
+function collapseTree() {
+  state.devices.forEach((device) => {
+    state.collapsedTree.add(`vendor:${device.vendor}`);
+    state.collapsedTree.add(`type:${device.vendor}\0${device.type}`);
+  });
+  renderTree();
 }
 
 async function loadDevice(id) {
@@ -321,8 +340,12 @@ function renderPorts() {
 }
 
 function addPort() {
-  state.manifest.ports.push({ label: String(state.manifest.ports.length + 1), kind: 'ethernet', element: '' }); state.activePort = state.manifest.ports.length - 1; markDirty(); renderPorts(); highlightActive();
-  elements.ports.lastElementChild?.scrollIntoView({ block: 'nearest' });
+  const count = Number(elements.portsToAdd.value);
+  if (!Number.isInteger(count) || count < 1 || count > 256) { notify('Number to add must be a whole number between 1 and 256.', true); elements.portsToAdd.focus(); return; }
+  const start = state.manifest.ports.length;
+  for (let offset = 0; offset < count; offset += 1) state.manifest.ports.push({ label: String(start + offset + 1), kind: 'ethernet', element: '' });
+  elements.portsToAdd.value = '1';
+  markDirty(); renderPorts(); highlightActive();
 }
 
 function onFormInput(event) {
@@ -364,7 +387,9 @@ async function validateEditor() {
   clearFormErrors();
   const errors = [];
   if (!state.manifest.vendor.trim()) { errors.push('Vendor is required.'); elements.form.vendor.classList.add('field-invalid'); }
+  else { const error = window.assetSlug.slugError('Vendor', state.manifest.vendor); if (error) { errors.push(error); elements.form.vendor.classList.add('field-invalid'); } }
   if (!state.manifest.model.trim()) { errors.push('Model name is required.'); elements.form.model.classList.add('field-invalid'); }
+  else { const error = window.assetSlug.slugError('Model', state.manifest.model); if (error) { errors.push(error); elements.form.model.classList.add('field-invalid'); } }
   if (!Object.hasOwn(TYPE_LABELS, state.manifest.type)) { errors.push('Select a device type.'); elements.form.type.classList.add('field-invalid'); }
   if (!state.manifest.ports.length) errors.push('At least one port is required.');
   const labels = new Set();

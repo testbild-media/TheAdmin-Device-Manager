@@ -1,14 +1,25 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { slugify, parseViewBox, validateSvg, cleanSvg, formatSvg, validateManifest, validateDeviceFolder, normalizeDeviceType, formatManifest, scanLibrary, isInside } = require('../src/library.cjs');
+const { slugify, isValidAssetSlug, parseViewBox, validateSvg, cleanSvg, formatSvg, validateManifest, validateDeviceFolder, normalizeDeviceType, formatManifest, scanLibrary, isInside } = require('../src/library.cjs');
 const path = require('node:path');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 
 test('slugify follows the device folder convention', () => {
-  assert.equal(slugify('U6+'), 'u6plus');
-  assert.equal(slugify('AP Pro'), 'ap-pro');
-  assert.equal(slugify('10G/SFP'), '10g-sfp');
+  const cases = new Map([
+    ['Ubiquiti Networks, Inc.', 'ubiquiti-networks-inc'], ['AT&T', 'at-t'], ['Rohde & Schwarz', 'rohde-schwarz'],
+    ['FRITZ!Box 7590', 'fritz-box-7590'], ['U6+', 'u6-plus'], ['10G/SFP+', '10g-sfp-plus'],
+    ['US-8-60W', 'us-8-60w'], ['V1.2', 'v1-2'], ['V12', 'v12'], ['Télécom', 'telecom'],
+    ['Grün', 'gruen'], ['LGS352C (v2)', 'lgs352c-v2'], ['2S+', '2s-plus'], ['Ærøskøbing', 'aeroskobing'],
+    ['Þing Ðevice Œuvre', 'thing-device-oeuvre']
+  ]);
+  for (const [input, expected] of cases) assert.equal(slugify(input), expected, input);
+  assert.notEqual(slugify('V1.2'), slugify('V12'));
+});
+
+test('asset slugs reject empty and Windows-reserved path segments', () => {
+  for (const input of ['', ' . ', 'CON', 'prn', 'COM1', 'lpt9']) assert.equal(isValidAssetSlug(slugify(input)), false, input);
+  for (const input of ['vendor-com1-48', 'com1-switch', 'console', 'communication', 'lpt10']) assert.equal(isValidAssetSlug(slugify(input)), true, input);
 });
 
 test('parseViewBox accepts spaces and commas', () => {
@@ -110,6 +121,20 @@ test('a valid library is discovered', async (context) => {
   assert.equal(devices.length, 1);
   assert.equal(devices[0].id, 'mokerlink/2g08110gsm');
   assert.equal(devices[0].validation.status, 'valid');
+});
+
+test('library validation requires folder names to match manifest slugs', async (context) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'device-manager-slug-'));
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const folder = path.join(root, 'ubiquiti-networks-inc', 'u6plus');
+  await fs.mkdir(folder, { recursive: true });
+  await fs.writeFile(path.join(folder, 'device.json'), JSON.stringify({
+    formatVersion: 1, vendor: 'Ubiquiti Networks, Inc.', model: 'U6+', type: 'access_point', viewBox: [0, 0, 10, 10],
+    ports: [{ label: '1', kind: 'ethernet', element: 'port-1' }]
+  }));
+  await fs.writeFile(path.join(folder, 'front.svg'), '<svg viewBox="0 0 10 10"><rect id="port-1" x="0" y="0" width="2" height="2"/></svg>');
+  const result = await validateDeviceFolder(root, 'ubiquiti-networks-inc', 'u6plus');
+  assert.ok(result.errors.includes('A3: Model folder must be “u6-plus” for manifest model “U6+”.'));
 });
 
 test('server rules report invalid assets and non-fatal paint warnings', async (context) => {

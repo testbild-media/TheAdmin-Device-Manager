@@ -52,6 +52,10 @@ h2 { font-size: 16px; }
 h3 { font-size: 14px; }
 .eyebrow { color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
 .count { min-width: 24px; padding: 2px 7px; text-align: center; color: var(--muted); background: #1d2735; border-radius: 20px; font-size: 11px; }
+.tree-actions, .add-ports { display: flex; align-items: center; gap: 7px; }
+.collapse-tree { padding: 3px 6px; border: 0; border-radius: 5px; color: var(--muted); background: transparent; cursor: pointer; font-size: 10px; }
+.collapse-tree:hover:not(:disabled) { color: var(--text); background: #17202d; }
+.collapse-tree:disabled { opacity: .4; cursor: default; }
 .device-tree { height: calc(100% - 72px); overflow-y: auto; padding: 10px; }
 .device-tree.empty { display: grid; place-items: center; color: var(--muted); text-align: center; padding: 30px; }
 .tree-vendor { margin-bottom: 0; }
@@ -119,6 +123,8 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
 .viewbox-row output { min-width: 0; overflow: hidden; color: var(--text); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; white-space: nowrap; text-overflow: ellipsis; }
 .manifest-form input[readonly] { color: var(--muted); }
 .ports-title { margin: 18px 0 7px; }
+.add-ports label { color: var(--muted); font-size: 9px; font-weight: 650; white-space: nowrap; }
+.add-ports input { width: 52px; height: 29px; padding: 4px 6px; font-size: 11px; }
 .ports-columns { display: grid; grid-template-columns: 22px minmax(42px, .65fr) 78px minmax(82px, 1fr) 22px; gap: 5px; padding: 0 7px 4px; color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .icon-button { width: 29px; height: 29px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 7px; background: var(--panel-2); cursor: pointer; font-size: 18px; }
 .port-card { display: grid; grid-template-columns: 22px minmax(42px, .65fr) 78px minmax(82px, 1fr) 22px; align-items: center; gap: 5px; margin-bottom: 5px; padding: 5px 6px; border: 1px solid var(--line); border-radius: 7px; background: #0d141e; cursor: pointer; }
