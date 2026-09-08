@@ -38,6 +38,15 @@ button { color: inherit; }
 .button.primary { color: #1b1205; background: var(--brand); border-color: var(--brand); font-weight: 700; }
 .button.primary:hover:not(:disabled) { background: var(--brand-hover); border-color: var(--brand-hover); }
 .button:disabled { opacity: .4; cursor: default; }
+.button.danger { color: var(--critical); }
+.library-menu { position: relative; }
+.library-menu > summary { list-style: none; }
+.library-menu > summary::-webkit-details-marker { display: none; }
+.library-menu-items { position: absolute; top: calc(100% + 7px); right: 0; z-index: 20; width: 220px; padding: 7px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); box-shadow: 0 14px 40px #0008; }
+.library-menu-items button { width: 100%; padding: 8px 9px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
+.library-menu-items button:hover:not(:disabled) { background: #202c3c; }
+.library-menu-items button:disabled { opacity: .42; cursor: default; }
+.library-menu-items hr { margin: 5px 4px; border: 0; border-top: 1px solid var(--line); }
 .shortcut { margin-left: 8px; font-size: 10px; opacity: .62; text-transform: uppercase; }
 .workspace { height: calc(100vh - 68px); min-height: 0; display: grid; grid-template-columns: 260px minmax(480px, 1fr) 350px; grid-template-rows: minmax(0, 1fr); }
 .workspace > * { min-height: 0; }
@@ -138,6 +147,21 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
 .hidden { display: none !important; }
 .toast { position: fixed; left: 50%; bottom: 20px; z-index: 10; transform: translateX(-50%); max-width: 600px; padding: 10px 14px; color: #dffbef; background: #17372c; border: 1px solid #2f725c; border-radius: 8px; box-shadow: 0 12px 40px #0009; white-space: pre-line; }
 .toast.error { color: #ffe7e9; background: #401b20; border-color: #8b3a44; }
+.modal { width: min(440px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--line); border-radius: 12px; color: var(--text); background: var(--panel); box-shadow: 0 24px 80px #000b; }
+.modal::backdrop { background: #05080dbb; backdrop-filter: blur(2px); }
+.modal form { display: grid; gap: 12px; padding: 20px; }
+.modal h2 { font-size: 18px; }
+.modal-description { color: var(--muted); font-size: 12px; }
+.modal label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 650; }
+.modal-error { padding: 9px 10px; border: 1px solid #8b3a44; border-radius: 7px; color: #ffe7e9; background: #401b20; white-space: pre-line; font-size: 12px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
+.merge-modal { width: min(760px, calc(100vw - 32px)); }
+.merge-conflicts { max-height: min(55vh, 520px); overflow-y: auto; display: grid; gap: 8px; }
+.merge-conflict { display: grid; grid-template-columns: minmax(150px, 1fr) auto auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-2); }
+.merge-conflict strong, .merge-conflict small { display: block; }
+.merge-conflict small { color: var(--muted); font-size: 10px; }
+.merge-choice { display: flex !important; grid-auto-flow: column; align-items: center; gap: 5px !important; color: var(--text) !important; font-size: 11px !important; }
+.merge-choice input { width: auto; }
 @media (max-width: 1200px) { .workspace { grid-template-columns: 220px minmax(430px, 1fr) 310px; } }
 @media (prefers-color-scheme: light) {
   :root {
@@ -147,6 +171,8 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
   }
   .topbar { background: #ffffff; }
   .button, .icon-button { background: #f6f8fa; }
+  .library-menu-items { background: #ffffff; box-shadow: 0 14px 40px #1f232833; }
+  .library-menu-items button:hover:not(:disabled) { background: #f3f4f6; }
   .button.primary { color: #241704; background: var(--brand); }
   .count { background: #eaeef2; }
   .tree-toggle:hover, .tree-device:hover { background: #f3f4f6; }
@@ -161,5 +187,6 @@ kbd { display: inline-block; min-width: 18px; padding: 1px 4px; border: 1px soli
   .port-card.active { background: #fff8f7; }
   .toast { color: #0a3622; background: #dafbe1; border-color: #82d59a; }
 .toast.error, .form-errors { color: #5d1511; background: #ffebe9; border-color: #ff8182; }
+  .modal-error { color: #5d1511; background: #ffebe9; border-color: #ff8182; }
 }
 .advanced-scan-host { position: fixed; left: -2000px; top: 0; width: 1000px; height: 1000px; overflow: hidden; pointer-events: none; visibility: visible; }

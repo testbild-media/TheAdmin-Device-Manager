@@ -8,7 +8,8 @@
   "main": "src/main.cjs",
   "type": "commonjs",
   "dependencies": {
-    "@xmldom/xmldom": "^0.8.11"
+    "@xmldom/xmldom": "^0.8.11",
+    "adm-zip": "^0.6.0"
   },
   "scripts": {
     "start": "electron .",
@@ -42,7 +43,7 @@
         "deb"
       ],
       "icon": "branding/icon.svg",
-	  "maintainer": "testbild.media <mail@testbild.media>",
+      "maintainer": "testbild.media <mail@testbild.media>",
       "category": "Development"
     }
   }

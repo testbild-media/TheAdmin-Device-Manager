@@ -11,8 +11,21 @@
   <header class="topbar">
     <div class="brand"><picture><source media="(prefers-color-scheme: light)" srcset="../branding/logo_light.svg"><img src="../branding/logo_dark.svg" alt="TheAdmin"></picture><span class="brand-divider"></span><div><strong>Device Manager</strong><small id="library-path">No library opened</small></div></div>
     <div class="toolbar">
-      <button id="open-library" class="button secondary">Open folder</button>
+      <details id="library-menu" class="library-menu">
+        <summary class="button secondary">Library</summary>
+        <div class="library-menu-items">
+          <button id="create-library" type="button">Create user library</button>
+          <button id="open-user-library" type="button">Open user library</button>
+          <button id="open-external-library" type="button">Open external library…</button>
+          <hr>
+          <button id="edit-library" type="button" disabled>Edit library…</button>
+          <button id="merge-library" type="button" disabled>Merge ADLIB…</button>
+          <button id="export-library" type="button" disabled>Export library…</button>
+          <button id="show-library" type="button" disabled>Show in Explorer</button>
+        </div>
+      </details>
       <button id="new-device" class="button secondary" disabled>New device</button>
+      <button id="delete-device" class="button danger" disabled>Delete device</button>
       <button id="save-device" class="button primary" disabled>Save <span class="shortcut">Ctrl S</span></button>
     </div>
   </header>
@@ -20,7 +33,7 @@
   <main class="workspace">
     <aside class="sidebar panel">
       <div class="panel-heading"><div><span class="eyebrow">Library</span><h2>Devices</h2></div><div class="tree-actions"><button id="collapse-tree" type="button" class="collapse-tree" title="Collapse all vendors and types" disabled>Collapse all</button><span id="device-count" class="count">0</span></div></div>
-      <div id="device-tree" class="device-tree empty"><p>Open a <code>device-assets</code> folder.</p></div>
+      <div id="device-tree" class="device-tree empty"><p>Create or open a device library.</p></div>
     </aside>
 
     <section class="canvas-panel panel">
@@ -68,6 +81,27 @@
       </form>
     </aside>
   </main>
+
+  <dialog id="library-editor" class="modal">
+    <form id="library-editor-form" method="dialog">
+      <span class="eyebrow">Library</span><h2 id="library-editor-title">Create user library</h2>
+      <p id="library-editor-description" class="modal-description"></p>
+      <label>Name<input id="library-name" autocomplete="off" required></label>
+      <label>Author<input id="library-author" autocomplete="off" required></label>
+      <label>Version<input id="library-version" autocomplete="off" required pattern="\d+\.\d+\.\d+(?:-[0-9A-Za-z.\-]+)?" placeholder="1.0.0"></label>
+      <div id="library-editor-error" class="modal-error hidden" role="alert"></div>
+      <div class="modal-actions"><button id="library-editor-cancel" type="button" class="button secondary">Cancel</button><button id="library-editor-submit" type="submit" class="button primary">Create library</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="merge-dialog" class="modal merge-modal">
+    <form id="merge-form" method="dialog">
+      <span class="eyebrow">Merge</span><h2>Resolve duplicate devices</h2>
+      <p class="modal-description">The newer device is preselected. Review every conflict before merging.</p>
+      <div id="merge-conflicts" class="merge-conflicts"></div>
+      <div class="modal-actions"><button id="merge-cancel" type="button" class="button secondary">Cancel</button><button id="merge-submit" type="submit" class="button primary">Merge libraries</button></div>
+    </form>
+  </dialog>
 
   <div id="toast" class="toast hidden" role="status"></div>
   <script src="asset-slug.js"></script>

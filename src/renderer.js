@@ -7,17 +7,27 @@ const TYPE_LABELS = {
   ups: 'UPS', workstation: 'Workstation'
 };
 
-const state = { root: null, devices: [], currentId: null, manifest: null, svg: '', dirty: false, activePort: null, activeLayer: -1, layers: [], collapsedTree: new Set() };
+const state = { root: null, libraryRoot: null, libraryKind: null, archivePath: null, metadata: null, devices: [], currentId: null, manifest: null, svg: '', dirty: false, activePort: null, activeLayer: -1, layers: [], collapsedTree: new Set() };
 const $ = (selector) => document.querySelector(selector);
 const elements = {
-  open: $('#open-library'), create: $('#new-device'), save: $('#save-device'), path: $('#library-path'), count: $('#device-count'), collapseTree: $('#collapse-tree'),
+  createLibrary: $('#create-library'), openUserLibrary: $('#open-user-library'), openExternalLibrary: $('#open-external-library'), editLibrary: $('#edit-library'), mergeLibrary: $('#merge-library'), exportLibrary: $('#export-library'), showLibrary: $('#show-library'), libraryMenu: $('#library-menu'),
+  create: $('#new-device'), deleteDevice: $('#delete-device'), save: $('#save-device'), path: $('#library-path'), count: $('#device-count'), collapseTree: $('#collapse-tree'),
   tree: $('#device-tree'), title: $('#device-title'), dirty: $('#dirty-badge'), emptyCanvas: $('#empty-canvas'), content: $('#canvas-content'),
   preview: $('#svg-preview'), replaceSvg: $('#replace-svg'), layerList: $('#layer-list'), layerCount: $('#layer-count'), layerFilter: $('#layer-filter'),
-  editorEmpty: $('#editor-empty'), form: $('#manifest-form'), viewBox: $('#viewbox-value'), formErrors: $('#form-errors'), ports: $('#ports-list'), portsToAdd: $('#ports-to-add'), addPort: $('#add-port'), toast: $('#toast')
+  editorEmpty: $('#editor-empty'), form: $('#manifest-form'), viewBox: $('#viewbox-value'), formErrors: $('#form-errors'), ports: $('#ports-list'), portsToAdd: $('#ports-to-add'), addPort: $('#add-port'), toast: $('#toast'),
+  libraryDialog: $('#library-editor'), libraryForm: $('#library-editor-form'), libraryDialogTitle: $('#library-editor-title'), libraryDialogDescription: $('#library-editor-description'), libraryName: $('#library-name'), libraryAuthor: $('#library-author'), libraryVersion: $('#library-version'), libraryError: $('#library-editor-error'), libraryCancel: $('#library-editor-cancel'), librarySubmit: $('#library-editor-submit'),
+  mergeDialog: $('#merge-dialog'), mergeForm: $('#merge-form'), mergeConflicts: $('#merge-conflicts'), mergeCancel: $('#merge-cancel'), mergeSubmit: $('#merge-submit')
 };
 
-elements.open.addEventListener('click', chooseLibrary);
+elements.createLibrary.addEventListener('click', createLibrary);
+elements.openUserLibrary.addEventListener('click', openUserLibrary);
+elements.openExternalLibrary.addEventListener('click', openExternalLibrary);
+elements.editLibrary.addEventListener('click', editLibrary);
+elements.mergeLibrary.addEventListener('click', mergeLibrary);
+elements.exportLibrary.addEventListener('click', exportLibrary);
+elements.showLibrary.addEventListener('click', showLibrary);
 elements.create.addEventListener('click', createDevice);
+elements.deleteDevice.addEventListener('click', deleteDevice);
 elements.save.addEventListener('click', saveDevice);
 elements.replaceSvg.addEventListener('click', replaceSvg);
 elements.addPort.addEventListener('click', addPort);
@@ -31,29 +41,167 @@ window.addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); if (!elements.save.disabled) saveDevice(); }
 });
 window.deviceStudio.onSaveBeforeClose(async () => window.deviceStudio.finishCloseAfterSave(await saveDevice()));
-restoreLastLibrary();
+initializeLibrary();
 
-async function restoreLastLibrary() {
+async function initializeLibrary() {
   try {
-    const result = await window.deviceStudio.restoreLastLibrary();
-    if (!result) return;
+    const result = await window.deviceStudio.startupLibrary();
     if (!result.ok) { notify(result.error, true); return; }
+    if (result.data.needsSetup) { clearLibrary(); await createLibrary(true); return; }
     applyLibrary(result.data);
-  } catch (error) { notify(`The last folder could not be opened.\n${error.message}`, true); }
-}
-
-async function chooseLibrary() {
-  if (!canLeave()) return;
-  try { const result = await window.deviceStudio.chooseLibrary(); if (result) applyLibrary(result); } catch (error) { notify(error.message, true); }
+  } catch (error) { notify(`The user library could not be opened.\n${error.message}`, true); }
 }
 
 function applyLibrary(result) {
-  state.root = result.root; state.devices = result.devices; state.currentId = null; state.manifest = null; state.svg = ''; state.dirty = false;
+  state.root = result.root; state.libraryRoot = result.libraryRoot; state.libraryKind = result.libraryKind; state.archivePath = result.archivePath; state.metadata = result.metadata; state.devices = result.devices; state.currentId = null; state.manifest = null; state.svg = ''; state.dirty = false;
   state.collapsedTree.clear();
-  elements.path.textContent = result.root; elements.path.title = result.root; elements.create.disabled = false; elements.save.disabled = true;
+  updateLibraryHeader(); elements.create.disabled = false; elements.deleteDevice.disabled = true; elements.save.disabled = true;
+  [elements.editLibrary, elements.mergeLibrary, elements.exportLibrary, elements.showLibrary].forEach((button) => { button.disabled = false; });
   clearEditor(); updateDirty(); renderTree(); runAdvancedLibraryValidation(result.root);
   reportRemovedFolders(result.removedFolders);
 }
+
+function clearLibrary() {
+  state.root = null; state.libraryRoot = null; state.libraryKind = null; state.archivePath = null; state.metadata = null; state.devices = []; state.currentId = null; state.manifest = null; state.svg = ''; state.dirty = false;
+  elements.path.textContent = 'No library opened'; elements.path.title = '';
+  elements.create.disabled = true; elements.deleteDevice.disabled = true; elements.save.disabled = true;
+  [elements.editLibrary, elements.mergeLibrary, elements.exportLibrary, elements.showLibrary].forEach((button) => { button.disabled = true; });
+  clearEditor(); updateDirty(); renderTree();
+}
+
+function updateLibraryHeader() {
+  const location = state.libraryKind === 'archive' ? state.archivePath : state.libraryRoot;
+  elements.path.textContent = `${state.metadata.name} · v${state.metadata.version}`;
+  elements.path.title = location || '';
+}
+
+async function createLibrary(firstRun = false) {
+  if (!firstRun && !canLeave()) return;
+  closeLibraryMenu();
+  const metadata = await promptLibraryMetadata({
+    title: 'Create user library', description: 'The default devices will be downloaded from the main branch.',
+    submitLabel: 'Create library', required: firstRun, initial: { name: 'My Device Library', author: '', version: '1.0.0' }
+  });
+  if (!metadata) return;
+  await runLibraryAction(window.deviceStudio.createLibrary(metadata), 'Creating library and fetching default devices…', (data) => { if (data) applyLibrary(data); });
+}
+
+async function openUserLibrary() {
+  if (!canLeave()) return;
+  closeLibraryMenu();
+  await runLibraryAction(window.deviceStudio.openUserLibrary(), 'Opening user library…', async (data) => {
+    if (data?.needsSetup) await createLibrary(true); else if (data) applyLibrary(data);
+  });
+}
+
+async function openExternalLibrary() {
+  if (!canLeave()) return;
+  closeLibraryMenu();
+  await runLibraryAction(window.deviceStudio.openExternalLibrary(), 'Opening and validating external library…', (data) => { if (data) applyLibrary(data); });
+}
+
+async function editLibrary() {
+  if (!state.metadata || !canLeave()) return;
+  closeLibraryMenu();
+  const metadata = await promptLibraryMetadata({ title: 'Edit library', description: 'Device count and update date are maintained automatically.', submitLabel: 'Save library', initial: state.metadata });
+  if (!metadata) return;
+  await runLibraryAction(window.deviceStudio.editLibrary(metadata), 'Saving library metadata…', (data) => { if (data) applyLibrary(data); });
+}
+
+async function exportLibrary() {
+  if (!state.metadata || !canLeave()) return;
+  closeLibraryMenu();
+  await runLibraryAction(window.deviceStudio.exportLibrary(), 'Creating ADLIB copy…', (data) => { if (data) notify(`Library exported to\n${data.path}`); });
+}
+
+async function showLibrary() {
+  closeLibraryMenu();
+  await runLibraryAction(window.deviceStudio.showLibrary(), 'Opening library folder…');
+}
+
+async function deleteDevice() {
+  if (!state.currentId || !canLeave()) return;
+  await runLibraryAction(window.deviceStudio.deleteDevice(state.currentId), 'Deleting device…', (data) => { if (data) { applyLibrary(data); notify('Device deleted.'); } });
+}
+
+async function mergeLibrary() {
+  if (!state.metadata || !canLeave()) return;
+  closeLibraryMenu();
+  const preparedResult = await window.deviceStudio.prepareMerge();
+  if (!preparedResult.ok) { notify(preparedResult.error, true); return; }
+  const prepared = preparedResult.data;
+  if (!prepared) return;
+  const decisions = prepared.conflicts.length ? await promptMergeDecisions(prepared.conflicts) : {};
+  if (!decisions) { await window.deviceStudio.cancelMerge(prepared.token); return; }
+  await runLibraryAction(window.deviceStudio.commitMerge({ token: prepared.token, decisions }), 'Merging and validating libraries…', (data) => {
+    if (data) { applyLibrary(data); notify(`Merge complete. Processed ${data.mergedCount} incoming device${data.mergedCount === 1 ? '' : 's'}.`); }
+  });
+}
+
+async function runLibraryAction(promise, progress, onSuccess = null) {
+  notify(progress);
+  try {
+    const result = await promise;
+    if (!result.ok) { notify(result.error || 'The operation failed.', true); return null; }
+    if (onSuccess) await onSuccess(result.data);
+    return result.data;
+  } catch (error) { notify(error.message, true); return null; }
+}
+
+function promptLibraryMetadata({ title, description, submitLabel, initial, required = false }) {
+  elements.libraryDialogTitle.textContent = title;
+  elements.libraryDialogDescription.textContent = description;
+  elements.librarySubmit.textContent = submitLabel;
+  elements.libraryName.value = initial?.name || '';
+  elements.libraryAuthor.value = initial?.author || '';
+  elements.libraryVersion.value = initial?.version || '1.0.0';
+  elements.libraryError.textContent = ''; elements.libraryError.classList.add('hidden');
+  elements.libraryCancel.classList.toggle('hidden', required);
+  elements.libraryDialog.showModal();
+  elements.libraryName.focus();
+  return new Promise((resolve) => {
+    const finish = (value) => {
+      elements.libraryForm.removeEventListener('submit', submit);
+      elements.libraryCancel.removeEventListener('click', cancel);
+      elements.libraryDialog.removeEventListener('cancel', cancel);
+      elements.libraryDialog.close(); resolve(value);
+    };
+    const submit = (event) => {
+      event.preventDefault();
+      const value = { name: elements.libraryName.value.trim(), author: elements.libraryAuthor.value.trim(), version: elements.libraryVersion.value.trim() };
+      const errors = [];
+      if (!value.name) errors.push('Library name is required.');
+      if (!value.author) errors.push('Author is required.');
+      if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(value.version)) errors.push('Version must use semantic versioning, for example 1.0.0.');
+      if (errors.length) { elements.libraryError.textContent = errors.join('\n'); elements.libraryError.classList.remove('hidden'); return; }
+      finish(value);
+    };
+    const cancel = (event) => { event.preventDefault(); if (!required) finish(null); };
+    elements.libraryForm.addEventListener('submit', submit);
+    elements.libraryCancel.addEventListener('click', cancel);
+    elements.libraryDialog.addEventListener('cancel', cancel);
+  });
+}
+
+function promptMergeDecisions(conflicts) {
+  elements.mergeConflicts.replaceChildren(...conflicts.map((conflict, index) => {
+    const row = el('div', 'merge-conflict');
+    const details = el('div'); details.innerHTML = `<strong>${escapeHtml(conflict.label)}</strong><small>${escapeHtml(conflict.id)}</small>`;
+    const current = document.createElement('label'); current.className = 'merge-choice'; current.innerHTML = `<input type="radio" name="merge-${index}" value="current"${conflict.suggested === 'current' ? ' checked' : ''}><span>Keep current<small>${escapeHtml(formatDate(conflict.currentModified))}</small></span>`;
+    const incoming = document.createElement('label'); incoming.className = 'merge-choice'; incoming.innerHTML = `<input type="radio" name="merge-${index}" value="incoming"${conflict.suggested === 'incoming' ? ' checked' : ''}><span>Use incoming<small>${escapeHtml(formatDate(conflict.incomingModified))}</small></span>`;
+    row.append(details, current, incoming); row.dataset.id = conflict.id; return row;
+  }));
+  elements.mergeDialog.showModal();
+  return new Promise((resolve) => {
+    const finish = (value) => { elements.mergeForm.removeEventListener('submit', submit); elements.mergeCancel.removeEventListener('click', cancel); elements.mergeDialog.removeEventListener('cancel', cancel); elements.mergeDialog.close(); resolve(value); };
+    const submit = (event) => { event.preventDefault(); const decisions = {}; [...elements.mergeConflicts.children].forEach((row, index) => { decisions[row.dataset.id] = row.querySelector(`input[name="merge-${index}"]:checked`).value; }); finish(decisions); };
+    const cancel = (event) => { event.preventDefault(); finish(null); };
+    elements.mergeForm.addEventListener('submit', submit); elements.mergeCancel.addEventListener('click', cancel); elements.mergeDialog.addEventListener('cancel', cancel);
+  });
+}
+
+function closeLibraryMenu() { elements.libraryMenu.open = false; }
+function formatDate(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleString(); }
 
 function reportRemovedFolders(removedFolders) {
   const message = removedFoldersMessage(removedFolders);
@@ -154,7 +302,7 @@ async function loadDevice(id) {
   try {
     const result = await window.deviceStudio.loadDevice(state.root, id);
     state.currentId = id; state.manifest = prepareManifest(result.manifest, result.svg); state.svg = result.svg; state.dirty = false; state.activePort = state.manifest.ports.length ? 0 : null;
-    showEditor(); renderTree();
+    elements.deleteDevice.disabled = false; showEditor(); renderTree();
   } catch (error) { notify(error.message, true); }
 }
 
@@ -185,7 +333,7 @@ async function createDevice() {
   try {
     const chosen = await chooseSvgFile(); if (!chosen) return;
     state.currentId = null; state.svg = chosen.svg; state.manifest = { formatVersion: 1, vendor: '', model: '', type: 'switch', viewBox: chosen.viewBox, ports: [] };
-    state.dirty = true; state.activePort = null; showEditor(); renderTree(); $('[name="vendor"]').focus();
+    state.dirty = true; state.activePort = null; elements.deleteDevice.disabled = true; showEditor(); renderTree(); $('[name="vendor"]').focus();
     reportSvgCleanup(chosen);
   } catch (error) { notify(error.message, true); }
 }
@@ -224,7 +372,7 @@ function showEditor() {
 function clearEditor() {
   elements.emptyCanvas.classList.remove('hidden'); elements.content.classList.add('hidden'); elements.editorEmpty.classList.remove('hidden'); elements.form.classList.add('hidden');
   elements.replaceSvg.classList.add('hidden');
-  elements.title.textContent = 'No device selected'; elements.dirty.classList.add('hidden'); elements.preview.replaceChildren();
+  elements.title.textContent = 'No device selected'; elements.dirty.classList.add('hidden'); elements.deleteDevice.disabled = true; elements.preview.replaceChildren();
 }
 
 function renderSvg() {
@@ -392,6 +540,7 @@ async function saveDevice() {
     if (!result.ok) { showFormErrors(String(result.error || 'Save failed.').split('\n')); notify(result.error || 'Save failed.', true); return false; }
     const saved = result.data;
     state.currentId = saved.id; state.manifest = saved.manifest; state.devices = saved.devices; state.dirty = false; clearFormErrors(); updateDirty(); renderTree(); renderPorts(); runAdvancedLibraryValidation(state.root);
+    state.metadata = saved.metadata; updateLibraryHeader(); elements.deleteDevice.disabled = false;
     const cleanupMessage = removedFoldersMessage(saved.removedFolders); notify(`Device saved.${cleanupMessage ? `\n${cleanupMessage}` : ''}`); return true;
   } catch (error) { notify(error.message, true); return false; }
 }
