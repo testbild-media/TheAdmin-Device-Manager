@@ -32,7 +32,7 @@ jobs:
             artifact_name: linux-x64
           - name: macOS Universal
             os: macos-latest
-            build_command: pnpm exec electron-builder --mac dmg --universal --publish never
+            build_command: pnpm exec electron-builder --mac dmg zip --universal --publish never
             artifact_name: macos-universal
 
     steps:
@@ -77,6 +77,10 @@ jobs:
             dist/*.AppImage
             dist/*.deb
             dist/*.dmg
+            dist/*.zip
+            dist/latest.yml
+            dist/latest-mac.yml
+            dist/latest-linux.yml
 
   release:
     name: Publish GitHub release

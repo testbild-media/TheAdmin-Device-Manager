@@ -1,4 +1,5 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain, shell } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
@@ -19,6 +20,9 @@ let allowClose = false;
 let closePromptOpen = false;
 let activeLibrary = null;
 const mergeSessions = new Map();
+const RELEASES_URL = 'https://github.com/testbild-media/TheAdmin-Device-Manager/releases';
+let updateCheckStarted = false;
+let updateInstallPending = false;
 
 function createWindow() {
   editorDirty = false;
@@ -37,6 +41,7 @@ function createWindow() {
   });
   mainWindow.setMenuBarVisibility(false);
   mainWindow.on('close', handleWindowClose);
+  mainWindow.webContents.once('did-finish-load', checkForUpdatesAtStartup);
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 }
 
@@ -89,8 +94,64 @@ function registerIpc() {
   ipcMain.on('editor:dirty', (_event, dirty) => { editorDirty = Boolean(dirty); });
   ipcMain.on('app:close-after-save', (_event, success) => {
     closePromptOpen = false;
-    if (success && mainWindow && !mainWindow.isDestroyed()) { editorDirty = false; allowClose = true; mainWindow.close(); }
+    if (!success || !mainWindow || mainWindow.isDestroyed()) return;
+    editorDirty = false;
+    if (updateInstallPending) { installDownloadedUpdate(); return; }
+    allowClose = true;
+    mainWindow.close();
   });
+}
+
+function checkForUpdatesAtStartup() {
+  if (!app.isPackaged || updateCheckStarted) return;
+  updateCheckStarted = true;
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.on('update-available', showAvailableUpdate);
+  autoUpdater.on('update-downloaded', showDownloadedUpdate);
+  autoUpdater.on('error', (error) => console.warn('Automatic update check failed:', error?.message || error));
+  autoUpdater.checkForUpdates().catch((error) => console.warn('Automatic update check failed:', error?.message || error));
+}
+
+async function showAvailableUpdate(info) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'info', title: 'Update available', message: `TheAdmin Device Manager ${info.version} is available.`,
+    detail: `You are currently using version ${app.getVersion()}. Would you like to download the update now?`,
+    buttons: ['Download update', 'Later'], defaultId: 0, cancelId: 1, noLink: true
+  });
+  if (result.response !== 0) return;
+  try { await autoUpdater.downloadUpdate(); }
+  catch (error) { await showUpdateFailure(error); }
+}
+
+async function showDownloadedUpdate(info) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'info', title: 'Update ready', message: `TheAdmin Device Manager ${info.version} is ready to install.`,
+    detail: 'Restart the application to finish installing the update.',
+    buttons: ['Restart and install', 'Later'], defaultId: 0, cancelId: 1, noLink: true
+  });
+  if (result.response !== 0) return;
+  updateInstallPending = true;
+  if (editorDirty) mainWindow.close();
+  else installDownloadedUpdate();
+}
+
+function installDownloadedUpdate() {
+  updateInstallPending = false;
+  allowClose = true;
+  autoUpdater.quitAndInstall(false, true);
+}
+
+async function showUpdateFailure(error) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: 'error', title: 'Update failed', message: 'The update could not be downloaded.',
+    detail: error?.message || 'You can download the latest release manually.',
+    buttons: ['Open releases', 'Close'], defaultId: 0, cancelId: 1, noLink: true
+  });
+  if (result.response === 0) await shell.openExternal(RELEASES_URL);
 }
 
 function handle(channel, action) {
@@ -376,7 +437,12 @@ async function handleWindowClose(event) {
   });
   if (result.response === 0) { mainWindow.webContents.send('app:save-before-close'); return; }
   closePromptOpen = false;
-  if (result.response === 1) { allowClose = true; mainWindow.close(); }
+  if (result.response === 1) {
+    if (updateInstallPending) installDownloadedUpdate();
+    else { allowClose = true; mainWindow.close(); }
+    return;
+  }
+  updateInstallPending = false;
 }
 
 async function atomicWrite(file, content) {

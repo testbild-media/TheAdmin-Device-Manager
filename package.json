@@ -1,6 +1,6 @@
 {
   "name": "theadmin-device-manager",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "TheAdmin desktop editor for device-assets libraries",
   "author": "testbild.media",
   "license": "UNLICENSED",
@@ -9,7 +9,8 @@
   "type": "commonjs",
   "dependencies": {
     "@xmldom/xmldom": "^0.8.11",
-    "adm-zip": "^0.6.0"
+    "adm-zip": "^0.6.0",
+    "electron-updater": "^6.8.9"
   },
   "scripts": {
     "start": "electron .",
@@ -23,6 +24,15 @@
   "build": {
     "appId": "de.theadmin.devicemanager",
     "productName": "TheAdmin Device Manager",
+    "artifactName": "TheAdmin-Device-Manager-${version}-${os}-${arch}.${ext}",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "testbild-media",
+        "repo": "TheAdmin-Device-Manager",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "src/**/*",
       "branding/**/*",
@@ -33,7 +43,10 @@
       "icon": "branding/icon.ico"
     },
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "branding/icon.svg",
       "category": "public.app-category.developer-tools"
     },

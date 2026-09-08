@@ -43,3 +43,11 @@ copy.
 The canonical metadata fields are `name`, `version`, `updated`, `author`, and
 `deviceCount`. The `updated` and `deviceCount` values are maintained
 automatically.
+
+## Updates
+
+Packaged installations silently check the published releases of
+[TheAdmin Device Manager](https://github.com/testbild-media/TheAdmin-Device-Manager/releases)
+at startup. The app only displays a dialog when a newer version is available.
+After the user confirms the download, the update can be installed by restarting
+the app. Unsaved editor changes still use the normal save or discard prompt.
